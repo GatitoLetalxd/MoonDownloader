@@ -1,0 +1,38 @@
+{
+  "name": "moondownloader",
+  "version": "1.0.0",
+  "description": "MoonDownloader - Descargador de YouTube con interfaz premium",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup-binaries.js",
+    "dev:backend": "node server.js",
+    "dev:frontend": "vite",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "vite build",
+    "start": "node server.js",
+    "start:prod": "npm run build && NODE_ENV=production node server.js",
+    "deploy": "npm run build && npm run setup"
+  },
+  "dependencies": {
+    "compression": "^1.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.6.0",
+    "ffmpeg-static": "^5.2.0",
+    "helmet": "^8.3.0",
+    "lucide-react": "^0.473.0",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "sharp": "^0.35.3",
+    "vite": "^6.0.7"
+  }
+}
