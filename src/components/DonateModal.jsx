@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 export default function DonateModal({ isOpen, onClose }) {
   const { t } = useLanguage();
   const [showQr, setShowQr] = useState(true);
-  const [showPaypalQr, setShowPaypalQr] = useState(false);
+  const [showPaypalQr, setShowPaypalQr] = useState(true);
   const [copiedPaypal, setCopiedPaypal] = useState(false);
 
   if (!isOpen) return null;
@@ -49,10 +49,17 @@ export default function DonateModal({ isOpen, onClose }) {
                 <span className="badge-yape">Yape</span>
                 <span className="badge-plin">Plin</span>
               </div>
-              <span className="country-tag">Perú</span>
+              <span className="country-tag">Perú 🇵🇪</span>
             </div>
 
             <div className="donate-card-body">
+              <div className="paypal-info-display">
+                <span className="phone-label">Escaneo Móvil Rápido</span>
+                <span className="email-val" style={{ fontSize: '0.8rem', color: 'var(--color-foreground-muted)' }}>
+                  Acepta Yape y Plin directo desde tu app
+                </span>
+              </div>
+
               <button 
                 type="button" 
                 className={`btn-show-qr ${showQr ? 'active' : ''}`}
@@ -64,7 +71,7 @@ export default function DonateModal({ isOpen, onClose }) {
 
               {/* Collapsible QR Code Box */}
               {showQr && (
-                <div className="qr-container" style={{ marginTop: '0.75rem' }}>
+                <div className="qr-container">
                   <img src={qrImage} alt="Código QR Yape Plin" className="qr-image" />
                   <p className="qr-caption">{t('donate.scanYape')}</p>
                 </div>
@@ -76,7 +83,7 @@ export default function DonateModal({ isOpen, onClose }) {
           <div className="donate-card paypal-card">
             <div className="donate-card-header">
               <span className="badge-paypal">PayPal</span>
-              <span className="country-tag">International</span>
+              <span className="country-tag">Internacional 🌐</span>
             </div>
 
             <div className="donate-card-body">
@@ -119,7 +126,7 @@ export default function DonateModal({ isOpen, onClose }) {
               {showPaypalQr && (
                 <div className="qr-container">
                   <img src={qrPaypalImage} alt="Código QR PayPal" className="qr-image" />
-                  <p className="qr-caption">Escanea con la cámara de tu celular o la app de PayPal</p>
+                  <p className="qr-caption">Escanea con la app de PayPal o tu cámara</p>
                 </div>
               )}
             </div>
