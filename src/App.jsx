@@ -6,10 +6,12 @@ import DownloadPanel from './components/DownloadPanel.jsx';
 import DownloadProgress from './components/DownloadProgress.jsx';
 import WelcomeHero from './components/WelcomeHero.jsx';
 import DonateModal from './components/DonateModal.jsx';
+import CookiesModal from './components/CookiesModal.jsx';
+import SeoFooter from './components/SeoFooter.jsx';
 import { AlertCircle, Terminal, HelpCircle } from 'lucide-react';
 
 export default function App() {
-  const [status, setStatus] = useState({ ytDlpReady: false, ffmpegReady: false });
+  const [status, setStatus] = useState({ ytDlpReady: false, ffmpegReady: false, hasCookies: false });
   const [searchResults, setSearchResults] = useState(null);
   const [videoInfo, setVideoInfo] = useState(null);
   const [activeTaskIds, setActiveTaskIds] = useState([]);
@@ -22,6 +24,7 @@ export default function App() {
   
   // Modal states
   const [isDonateOpen, setIsDonateOpen] = useState(false);
+  const [isCookiesOpen, setIsCookiesOpen] = useState(false);
   
   // Feedback states
   const [error, setError] = useState(null);
@@ -56,13 +59,17 @@ export default function App() {
       
       try {
         const response = await fetch(`/api/info?url=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'No se pudo obtener información del video.');
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = { error: 'Error al comunicarse con el servidor.' };
         }
         
-        // Use the clean URL from the backend (strips playlist params like &list=)
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo obtener información del vídeo.');
+        }
+        
         setVideoInfo({ ...data, url: data.url || query });
       } catch (e) {
         setError(e.message);
@@ -77,7 +84,12 @@ export default function App() {
       
       try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = { error: 'Error al comunicarse con el servidor.' };
+        }
         
         if (!response.ok) {
           throw new Error(data.error || 'Ocurrió un error al buscar.');
@@ -97,13 +109,8 @@ export default function App() {
     setError(null);
 
     const configKey = `${videoInfo.url}_${format}_${quality}`;
-    
-    // Prevent starting the exact same download if it's already active
-    if (downloadingConfigs.includes(configKey)) {
-      return;
-    }
+    if (downloadingConfigs.includes(configKey)) return;
 
-    // Add config key to disable buttons on panel
     setDownloadingConfigs((prev) => [...prev, configKey]);
 
     try {
@@ -124,16 +131,12 @@ export default function App() {
         throw new Error(data.error || 'No se pudo iniciar la descarga.');
       }
 
-      // Add task ID to our active list to spawn a progress card (prevent duplicate cards)
       setActiveTaskIds((prev) => {
-        if (prev.includes(data.taskId)) {
-          return prev;
-        }
+        if (prev.includes(data.taskId)) return prev;
         return [data.taskId, ...prev];
       });
     } catch (e) {
       setError(e.message);
-      // Remove config key on direct network trigger failure
       setDownloadingConfigs((prev) => prev.filter(key => key !== configKey));
     }
   };
@@ -190,6 +193,7 @@ export default function App() {
         onSetup={handleSetup} 
         isWorking={isWorking}
         onOpenDonate={() => setIsDonateOpen(true)}
+        onOpenCookies={() => setIsCookiesOpen(true)}
       />
 
       <main className="container">
@@ -293,10 +297,19 @@ export default function App() {
 
       </main>
 
+      <SeoFooter />
+
       {/* Donation Modal */}
       <DonateModal 
         isOpen={isDonateOpen} 
         onClose={() => setIsDonateOpen(false)} 
+      />
+
+      {/* Cookies / Anti-bot Modal */}
+      <CookiesModal
+        isOpen={isCookiesOpen}
+        onClose={() => setIsCookiesOpen(false)}
+        onCookiesUpdated={fetchStatus}
       />
     </div>
   );

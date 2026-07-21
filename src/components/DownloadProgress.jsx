@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { DownloadCloud, CheckCircle, AlertCircle, Loader2, ExternalLink, Play } from 'lucide-react';
+import { DownloadCloud, CheckCircle, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 function ProgressItem({ taskId, onTaskUpdate }) {
+  const { t, lang } = useLanguage();
   const [task, setTask] = useState(null);
 
   useEffect(() => {
@@ -45,12 +47,12 @@ function ProgressItem({ taskId, onTaskUpdate }) {
 
   const getStatusText = () => {
     switch (task.status) {
-      case 'queued': return 'En cola...';
-      case 'downloading': return 'Descargando';
-      case 'processing': return task.eta || 'Procesando...';
-      case 'completed': return 'Descarga completada';
-      case 'failed': return 'Error de descarga';
-      default: return 'Cargando...';
+      case 'queued': return lang === 'es' ? 'En cola...' : 'Queued...';
+      case 'downloading': return t('progress.statusDownloading');
+      case 'processing': return task.eta || t('progress.statusProcessing');
+      case 'completed': return t('progress.statusCompleted');
+      case 'failed': return t('progress.statusFailed');
+      default: return '...';
     }
   };
 
@@ -104,7 +106,7 @@ function ProgressItem({ taskId, onTaskUpdate }) {
 
           {isCompleted && (
             <span style={{ color: 'var(--color-success)', fontSize: '0.85rem' }}>
-              ¡Descarga completada con éxito!
+              {t('progress.statusCompleted')}
             </span>
           )}
         </div>
@@ -112,7 +114,7 @@ function ProgressItem({ taskId, onTaskUpdate }) {
         {/* Error message */}
         {isFailed && (
           <div style={{ color: '#ff8a80', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-            {task.error || 'Ocurrió un error inesperado.'}
+            {task.error || (lang === 'es' ? 'Ocurrió un error inesperado.' : 'An unexpected error occurred.')}
           </div>
         )}
       </div>
@@ -127,7 +129,7 @@ function ProgressItem({ taskId, onTaskUpdate }) {
             style={{ padding: '0.5rem 0.85rem', fontSize: '0.8rem', textDecoration: 'none' }}
           >
             <ExternalLink size={12} />
-            Obtener Archivo
+            {t('progress.downloadFile')}
           </a>
         )}
         
@@ -148,13 +150,14 @@ function ProgressItem({ taskId, onTaskUpdate }) {
 }
 
 export default function DownloadProgress({ taskIds, onTaskUpdate }) {
+  const { t } = useLanguage();
   if (taskIds.length === 0) return null;
 
   return (
     <div className="queue-wrapper">
       <div className="queue-title">
         <DownloadCloud size={20} style={{ color: 'var(--color-secondary)' }} />
-        <h3>Descargas Activas y Recientes</h3>
+        <h3>{t('progress.activeTitle')}</h3>
       </div>
       
       <div className="queue-items">

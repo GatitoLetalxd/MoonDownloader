@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Link, X, Loader2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function SearchBox({ onSearch, isSearching }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState('');
   const [isUrl, setIsUrl] = useState(false);
 
@@ -30,7 +32,7 @@ export default function SearchBox({ onSearch, isSearching }) {
           htmlFor="search-input" 
           style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--color-foreground-muted)', display: 'block' }}
         >
-          Ingresa un enlace de YouTube o escribe términos de búsqueda
+          {t('search.hint')}
         </label>
         
         <div className="search-input-container">
@@ -44,7 +46,7 @@ export default function SearchBox({ onSearch, isSearching }) {
             id="search-input"
             type="text"
             className="search-input"
-            placeholder="Pegar enlace (https://youtube.com/watch?v=...) o buscar canciones, canales, mixes..."
+            placeholder={t('search.placeholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             disabled={isSearching}
@@ -71,11 +73,11 @@ export default function SearchBox({ onSearch, isSearching }) {
             {isSearching ? (
               <>
                 <Loader2 size={16} className="skeleton" style={{ animation: 'spin 1s linear infinite' }} />
-                <span>Procesando...</span>
+                <span>{isUrl ? t('search.btnAnalyzing') : t('search.btnSearching')}</span>
               </>
             ) : (
               <>
-                {isUrl ? 'Analizar Enlace' : 'Buscar'}
+                {t('search.btnSearch')}
               </>
             )}
           </button>

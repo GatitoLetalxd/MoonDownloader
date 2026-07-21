@@ -11,6 +11,8 @@ build/
 .env.local
 .env.production
 .env.development
+cookies.txt
+youtube_cookies.txt
 
 # Downloaded binaries & downloaded media files
 bin/

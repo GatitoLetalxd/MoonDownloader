@@ -1,0 +1,8 @@
+# MoonDownloader Robots.txt
+User-agent: *
+Allow: /
+
+# Prevent indexing backend API endpoints
+Disallow: /api/
+
+Sitemap: https://mdownload.moondev.online/sitemap.xml

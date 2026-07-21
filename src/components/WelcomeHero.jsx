@@ -1,14 +1,17 @@
 import React from 'react';
 import { Video, Music, Search, Cpu, ShieldCheck } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function WelcomeHero({ visible }) {
+  const { t } = useLanguage();
+
   return (
     <div className={`welcome-hero-container ${!visible ? 'welcome-hidden' : ''}`}>
       {/* Title Hero */}
       <div className="welcome-hero-header">
-        <span className="welcome-badge">Descargas al instante</span>
-        <h1>Descarga videos y música sin límites</h1>
-        <p>Busca tus canciones o pega un enlace para bajarlos en alta calidad de forma muy sencilla.</p>
+        <span className="welcome-badge">{t('hero.badge1')}</span>
+        <h1>{t('hero.h1Title')}</h1>
+        <p>{t('hero.subtitle')}</p>
       </div>
 
       {/* Grid Cards */}
@@ -17,24 +20,24 @@ export default function WelcomeHero({ visible }) {
           <div className="welcome-icon-box primary">
             <Video size={24} />
           </div>
-          <h3>Calidad de Imagen Máxima</h3>
-          <p>Descarga tus videos en alta definición (1080p, 720p y más) listos para ver con audio integrado.</p>
+          <h3>{t('hero.badge2')}</h3>
+          <p>{t('seo.feat1Desc')}</p>
         </div>
 
         <div className="welcome-card glass-card">
           <div className="welcome-icon-box secondary">
             <Music size={24} />
           </div>
-          <h3>Música en MP3</h3>
-          <p>Guarda tus canciones favoritas en archivos de sonido MP3 limpios y listos para escuchar.</p>
+          <h3>{t('hero.badge3')}</h3>
+          <p>{t('seo.feat2Desc')}</p>
         </div>
 
         <div className="welcome-card glass-card">
           <div className="welcome-icon-box accent">
             <Search size={24} />
           </div>
-          <h3>Búsqueda Simple</h3>
-          <p>Escribe el nombre del video o copia la dirección de la página. Te daremos las mejores opciones de inmediato.</p>
+          <h3>{t('seo.feat3Title')}</h3>
+          <p>{t('seo.feat3Desc')}</p>
         </div>
       </div>
 
@@ -43,16 +46,16 @@ export default function WelcomeHero({ visible }) {
         <div className="banner-item">
           <Cpu size={20} className="banner-icon" />
           <div>
-            <h4>Descargas Rápidas</h4>
-            <p>Compatible con todos los videos y canciones de la plataforma.</p>
+            <h4>{t('seo.feat2Title')}</h4>
+            <p>{t('seo.feat2Desc')}</p>
           </div>
         </div>
         <div className="banner-divider" />
         <div className="banner-item">
           <ShieldCheck size={20} className="banner-icon" />
           <div>
-            <h4>Seguro y Privado</h4>
-            <p>Tus descargas son 100% privadas y se guardan directamente en tu computadora.</p>
+            <h4>{t('seo.feat3Title')}</h4>
+            <p>{t('seo.feat3Desc')}</p>
           </div>
         </div>
       </div>

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Video, Music, Download, Clock, User } from 'lucide-react';
 import { formatDuration } from '../utils.js';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DownloadPanel({ videoInfo, onDownload, activeConfigs = [] }) {
+  const { t, lang } = useLanguage();
   const [activeTab, setActiveTab] = useState('video'); // 'video' | 'audio'
 
   const isConfigActive = (format, quality) => {
@@ -10,10 +12,14 @@ export default function DownloadPanel({ videoInfo, onDownload, activeConfigs = [
     return activeConfigs.includes(key);
   };
 
-  const audioOptions = [
+  const audioOptions = lang === 'es' ? [
     { quality: '320k', label: 'Calidad Máxima (320 kbps)', sub: 'La mejor definición de sonido, ideal para escuchar música.' },
     { quality: '256k', label: 'Calidad Alta (256 kbps)', sub: 'Excelente sonido, ocupa menos espacio en tu dispositivo.' },
     { quality: '128k', label: 'Calidad Estándar (128 kbps)', sub: 'Calidad básica de audio, se descarga muy rápido.' }
+  ] : [
+    { quality: '320k', label: 'Maximum Quality (320 kbps)', sub: 'Best audio fidelity, ideal for music playback.' },
+    { quality: '256k', label: 'High Quality (256 kbps)', sub: 'Great sound quality, uses less storage.' },
+    { quality: '128k', label: 'Standard Quality (128 kbps)', sub: 'Basic audio quality, downloads super fast.' }
   ];
 
   return (
@@ -52,14 +58,14 @@ export default function DownloadPanel({ videoInfo, onDownload, activeConfigs = [
               onClick={() => setActiveTab('video')}
             >
               <Video size={16} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'text-bottom' }} />
-              Video (MP4)
+              {t('panel.videoTab')}
             </button>
             <button 
               className={`format-tab-btn ${activeTab === 'audio' ? 'active' : ''}`}
               onClick={() => setActiveTab('audio')}
             >
               <Music size={16} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'text-bottom' }} />
-              Audio (MP3)
+              {t('panel.audioTab')}
             </button>
           </div>
 
@@ -73,7 +79,7 @@ export default function DownloadPanel({ videoInfo, onDownload, activeConfigs = [
                     <div key={res.height} className="option-row">
                       <div className="option-details">
                         <span className="option-name">{res.label}</span>
-                        <span className="option-sub">Video compatible con celulares y computadoras</span>
+                        <span className="option-sub">{lang === 'es' ? 'Video MP4 compatible con móviles y PC' : 'MP4 video compatible with mobile and PC'}</span>
                       </div>
                       <button 
                         className="btn-primary" 
@@ -82,14 +88,14 @@ export default function DownloadPanel({ videoInfo, onDownload, activeConfigs = [
                         disabled={isActive}
                       >
                         <Download size={14} />
-                        {isActive ? 'Descargando...' : 'Descargar'}
+                        {isActive ? t('panel.downloadingBtn') : t('panel.downloadBtn')}
                       </button>
                     </div>
                   );
                 })
               ) : (
                 <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--color-foreground-muted)' }}>
-                  No se encontraron calidades de video estándar. Intenta con calidad automática.
+                  {lang === 'es' ? 'No se encontraron calidades de vídeo estándar.' : 'No standard video qualities found.'}
                 </div>
               )
             ) : (
@@ -109,7 +115,7 @@ export default function DownloadPanel({ videoInfo, onDownload, activeConfigs = [
                       disabled={isActive}
                     >
                       <Download size={14} />
-                      {isActive ? 'Descargando...' : 'Extraer MP3'}
+                      {isActive ? t('panel.downloadingBtn') : t('panel.downloadBtn')}
                     </button>
                   </div>
                 );

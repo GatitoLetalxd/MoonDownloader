@@ -6,6 +6,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import { exec, execFile, spawn } from 'child_process';
 import ffmpegPath from 'ffmpeg-static';
@@ -15,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ─── Configuration (from .env) ────────────────────────────────────────────────
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_DOWNLOADS) || 3;
 const FILE_RETENTION_MIN = parseInt(process.env.FILE_RETENTION_MINUTES) || 5;
@@ -27,6 +29,7 @@ const BIN_DIR = path.join(__dirname, 'bin');
 const YTDLP_BINARY = IS_WINDOWS ? 'yt-dlp.exe' : 'yt-dlp';
 const YTDLP_PATH = path.join(BIN_DIR, YTDLP_BINARY);
 const DOWNLOADS_DIR = path.resolve(process.env.DOWNLOADS_DIR || path.join(__dirname, 'downloads'));
+const COOKIES_PATH = process.env.YOUTUBE_COOKIES_PATH || path.join(__dirname, 'cookies.txt');
 
 // Ensure directories exist
 [DOWNLOADS_DIR, path.join(__dirname, 'logs')].forEach(dir => {
@@ -39,18 +42,56 @@ function log(level, tag, message) {
   console.log(`[${timestamp}] [${level}] [${tag}] ${message}`);
 }
 
+// Helper to construct yt-dlp arguments with JS runtime & Cookies support
+function getYtDlpArgs(extraArgs = []) {
+  const args = [
+    '--js-runtimes', 'deno'
+  ];
+
+  if (fs.existsSync(COOKIES_PATH)) {
+    // Create an isolated temp copy to prevent yt-dlp from deleting/corrupting main cookies.txt on set-cookie responses
+    const tempCookiesPath = path.join(DOWNLOADS_DIR, `cookies_temp_${Date.now()}_${Math.random().toString(36).substring(7)}.txt`);
+    try {
+      fs.copyFileSync(COOKIES_PATH, tempCookiesPath);
+      args.push('--cookies', tempCookiesPath);
+      setTimeout(() => {
+        try { if (fs.existsSync(tempCookiesPath)) fs.unlinkSync(tempCookiesPath); } catch {}
+      }, 60000);
+    } catch (e) {
+      args.push('--cookies', COOKIES_PATH);
+    }
+  }
+
+  return [...args, ...extraArgs];
+}
+
+// Format friendly error messages for YouTube restrictions
+function parseYtDlpError(rawError) {
+  const msg = rawError || '';
+  if (msg.includes("cookies are no longer valid") || msg.includes("rotated in the browser")) {
+    return "Google ha desactivado las cookies anteriores al detectar actividad en tu navegador. Por favor, haz clic en 'Cookies' en el menú superior y pega unas cookies nuevas (se recomienda exportarlas desde una ventana de Incógnito).";
+  }
+  if (msg.includes("Sign in to confirm you’re not a bot") || msg.includes("Sign in to confirm you're not a bot")) {
+    return "YouTube ha bloqueado temporalmente las solicitudes de este servidor. Se requiere actualizar las cookies haciendo clic en el botón 'Cookies' arriba.";
+  }
+  if (msg.includes("Video unavailable") || msg.includes("Private video")) {
+    return "El vídeo no está disponible o es privado.";
+  }
+  return "Ocurrió un error al procesar el enlace. Por favor, verifica la URL e inténtalo nuevamente.";
+}
+
 // ─── Express setup ───────────────────────────────────────────────────────────
 const app = express();
 
 // Security & performance middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(compression());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // CORS — restrict to configured origin in production
 app.use(cors({
   origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN,
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'DELETE'],
   credentials: true
 }));
 
@@ -59,19 +100,19 @@ app.set('trust proxy', 1);
 
 // Rate limiters
 const searchLimiter = rateLimit({
-  windowMs: 60 * 1000,       // 1 minute
-  max: 15,                    // 15 searches per minute per IP
+  windowMs: 60 * 1000,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas búsquedas. Espera un momento e intenta de nuevo.' }
+  message: { error: 'Demasiadas solicitudes. Por favor, espera un momento e intenta de nuevo.' }
 });
 
 const downloadLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,                    // 10 download requests per minute per IP
+  max: 15,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiadas descargas. Espera un momento e intenta de nuevo.' }
+  message: { error: 'Demasiadas descargas solicitadas. Por favor, espera un momento.' }
 });
 
 // ─── Downloads state ─────────────────────────────────────────────────────────
@@ -93,8 +134,13 @@ function broadcastProgress(task) {
     quality: task.quality
   });
 
-  task.clients.forEach(client => {
-    try { client.res.write(`data: ${data}\n\n`); } catch (e) { /* client disconnected */ }
+  task.clients = task.clients.filter(client => {
+    try {
+      client.res.write(`data: ${data}\n\n`);
+      return true;
+    } catch (e) {
+      return false;
+    }
   });
 }
 
@@ -104,17 +150,14 @@ app.get('/api/files/:filename', (req, res) => {
   const safeFilename = path.basename(filename);
   let filePath = path.join(DOWNLOADS_DIR, safeFilename);
 
-  // Fallback 1: sanitized filename (double dots → single dot)
   if (!fs.existsSync(filePath)) {
     const sanitized = safeFilename.replace(/\.{2,}/g, '.').replace(/\s+\./g, '.').trim();
     const sanitizedPath = path.join(DOWNLOADS_DIR, sanitized);
     if (fs.existsSync(sanitizedPath)) {
-      log('INFO', 'FileServe', `Fallback: "${safeFilename}" → "${sanitized}"`);
       filePath = sanitizedPath;
     }
   }
 
-  // Fallback 2: alphanumeric match (Windows character replacements)
   if (!fs.existsSync(filePath)) {
     try {
       const files = fs.readdirSync(DOWNLOADS_DIR);
@@ -122,16 +165,14 @@ app.get('/api/files/:filename', (req, res) => {
       const target = strip(safeFilename);
       const matched = files.find(f => strip(f) === target);
       if (matched) {
-        log('INFO', 'FileServe', `Alphanumeric match: "${safeFilename}" → "${matched}"`);
         filePath = path.join(DOWNLOADS_DIR, matched);
       }
     } catch (e) {
-      log('ERROR', 'FileServe', `Alphanumeric fallback error: ${e.message}`);
+      log('ERROR', 'FileServe', `Fallback error: ${e.message}`);
     }
   }
 
   if (fs.existsSync(filePath)) {
-    // Schedule file deletion after the configured retention time
     const retentionMs = FILE_RETENTION_MIN * 60 * 1000;
     setTimeout(() => {
       try {
@@ -151,7 +192,7 @@ app.get('/api/files/:filename', (req, res) => {
       }
     });
   } else {
-    res.status(404).json({ error: 'Archivo no encontrado.' });
+    res.status(404).json({ error: 'El archivo solicitado ya no existe o fue eliminado por tiempo de retención.' });
   }
 });
 
@@ -161,15 +202,60 @@ app.get('/api/files/:filename', (req, res) => {
 app.get('/api/status', (req, res) => {
   const ytDlpReady = fs.existsSync(YTDLP_PATH);
   const ffmpegReady = !!ffmpegPath && fs.existsSync(ffmpegPath);
+  const hasCookies = fs.existsSync(COOKIES_PATH);
 
   res.json({
     ytDlpReady,
     ffmpegReady,
+    hasCookies,
     ffmpegPath: ffmpegReady ? ffmpegPath : null,
     downloadsDir: DOWNLOADS_DIR,
     activeDownloads: Object.values(activeDownloads).filter(t => ['downloading', 'processing', 'queued'].includes(t.status)).length,
     maxConcurrent: MAX_CONCURRENT
   });
+});
+
+// Manage cookies.txt
+app.get('/api/cookies', (req, res) => {
+  const exists = fs.existsSync(COOKIES_PATH);
+  let size = 0;
+  let updatedAt = null;
+
+  if (exists) {
+    const stats = fs.statSync(COOKIES_PATH);
+    size = stats.size;
+    updatedAt = stats.mtime;
+  }
+
+  res.json({ exists, size, updatedAt });
+});
+
+app.post('/api/cookies', (req, res) => {
+  const { content } = req.body;
+  if (!content || typeof content !== 'string') {
+    return res.status(400).json({ error: 'Se requiere el contenido del archivo cookies.txt en texto plano.' });
+  }
+
+  try {
+    fs.writeFileSync(COOKIES_PATH, content.trim(), 'utf-8');
+    log('INFO', 'Cookies', `cookies.txt guardado exitosamente (${content.length} bytes)`);
+    res.json({ success: true, message: 'cookies.txt guardado correctamente.' });
+  } catch (error) {
+    log('ERROR', 'Cookies', error.message);
+    res.status(500).json({ error: `Error al guardar cookies.txt: ${error.message}` });
+  }
+});
+
+app.delete('/api/cookies', (req, res) => {
+  try {
+    if (fs.existsSync(COOKIES_PATH)) {
+      fs.unlinkSync(COOKIES_PATH);
+      log('INFO', 'Cookies', 'cookies.txt eliminado');
+    }
+    res.json({ success: true, message: 'cookies.txt eliminado correctamente.' });
+  } catch (error) {
+    res.status(500).json({ error: `Error al eliminar cookies.txt: ${error.message}` });
+  }
 });
 
 // Install yt-dlp binary
@@ -190,15 +276,17 @@ app.get('/api/search', searchLimiter, (req, res) => {
 
   log('INFO', 'Search', `Query: "${q}"`);
 
-  execFile(YTDLP_PATH, [
-    '--js-runtimes', 'node',
+  const args = getYtDlpArgs([
     '--dump-json',
     '--flat-playlist',
     `ytsearch6:${q}`
-  ], { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+  ]);
+
+  execFile(YTDLP_PATH, args, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
     if (error && !stdout) {
-      log('ERROR', 'Search', error.message);
-      return res.status(500).json({ error: 'Ocurrió un error al buscar. Intenta de nuevo.' });
+      log('ERROR', 'Search', stderr || error.message);
+      const userMsg = parseYtDlpError(stderr || error.message);
+      return res.status(500).json({ error: userMsg });
     }
 
     const results = stdout.split('\n').filter(l => l.trim()).map(line => {
@@ -227,21 +315,22 @@ app.get('/api/info', searchLimiter, (req, res) => {
 
   log('INFO', 'Info', `Extracting formats for: ${url}`);
 
-  execFile(YTDLP_PATH, [
-    '--js-runtimes', 'node',
+  const args = getYtDlpArgs([
     '--dump-json',
     '--no-playlist',
     url
-  ], { maxBuffer: 25 * 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) {
-      log('ERROR', 'Info', error.message);
-      return res.status(500).json({ error: 'No se pudo obtener información del video. Verifica el enlace.' });
+  ]);
+
+  execFile(YTDLP_PATH, args, { maxBuffer: 25 * 1024 * 1024 }, (error, stdout, stderr) => {
+    if (error && !stdout) {
+      log('ERROR', 'Info', stderr || error.message);
+      const userMsg = parseYtDlpError(stderr || error.message);
+      return res.status(500).json({ error: userMsg });
     }
 
     try {
       const data = JSON.parse(stdout);
 
-      // Filter real video streams only
       const heights = new Set();
       if (data.formats) {
         data.formats.forEach(f => {
@@ -259,40 +348,206 @@ app.get('/api/info', searchLimiter, (req, res) => {
 
       const resolutions = Array.from(heights)
         .sort((a, b) => b - a)
-        .map(h => {
-          let label = `${h}p`;
-          if (h >= 2160) label = `4K Ultra HD (${h}p)`;
-          else if (h >= 1440) label = `2K Quad HD (${h}p)`;
-          else if (h >= 1080) label = `Full HD (${h}p)`;
-          else if (h === 720) label = `HD (${h}p)`;
-          else if (h === 480) label = `SD (${h}p)`;
-          return { height: h, label };
-        });
+        .map(h => ({ height: h, label: `${h}p ${h >= 720 ? (h >= 1080 ? (h >= 2160 ? '4K Ultra HD' : 'Full HD') : 'HD') : ''}`.trim() }));
+
+      if (resolutions.length === 0) {
+        resolutions.push({ height: 720, label: '720p HD (Automático)' });
+      }
 
       res.json({
         id: data.id,
-        title: data.title,
-        uploader: data.uploader || data.channel || 'Canal Desconocido',
+        title: data.title || 'Vídeo de YouTube',
+        uploader: data.uploader || data.channel || 'Desconocido',
         duration: data.duration || 0,
         thumbnail: data.thumbnail || (data.thumbnails?.length > 0 ? data.thumbnails[data.thumbnails.length - 1].url : null),
-        url: `https://www.youtube.com/watch?v=${data.id}`,
-        resolutions
+        resolutions,
+        url
       });
     } catch (e) {
-      log('ERROR', 'Info', `JSON parse error: ${e.message}`);
-      res.status(500).json({ error: 'Error al procesar la respuesta del servidor.' });
+      log('ERROR', 'Info', `JSON Parse error: ${e.message}`);
+      res.status(500).json({ error: 'No se pudo analizar la información del vídeo.' });
     }
   });
 });
 
-// Start download task
+// ─── Direct CDN URL (video → skip VPS bandwidth) ─────────────────────────────
+app.get('/api/direct-url', downloadLimiter, (req, res) => {
+  const { url, quality } = req.query;
+  if (!url || !quality) return res.status(400).json({ error: 'Faltan parámetros url y quality.' });
+  if (!fs.existsSync(YTDLP_PATH)) return res.status(500).json({ error: 'El descargador no está listo.' });
+
+  log('INFO', 'DirectURL', `Getting direct URL for ${url} @ ${quality}p`);
+
+  const args = getYtDlpArgs([
+    '-f', `best[height<=${quality}][vcodec!=none][acodec!=none]/best[height<=${quality}]/best`,
+    '--get-url',
+    '--no-playlist',
+    url
+  ]);
+
+  execFile(YTDLP_PATH, args, { maxBuffer: 5 * 1024 * 1024 }, (error, stdout, stderr) => {
+    if (error && !stdout) {
+      log('ERROR', 'DirectURL', stderr || error.message);
+      return res.status(500).json({ error: parseYtDlpError(stderr || error.message) });
+    }
+
+    const urls = stdout.trim().split('\n').filter(Boolean);
+    if (urls.length === 0) {
+      return res.status(500).json({ error: 'No se pudo obtener la URL de descarga.' });
+    }
+
+    res.json({
+      videoUrl: urls[0],
+      needsMerge: false
+    });
+  });
+});
+
+// ─── High-speed video stream proxy (Pipes Google CDN → Browser on-the-fly) ─────
+app.get('/api/stream', downloadLimiter, (req, res) => {
+  const { url: videoUrl, title } = req.query;
+  if (!videoUrl) return res.status(400).json({ error: 'Falta la URL de video.' });
+
+  let decodedUrl;
+  try {
+    decodedUrl = decodeURIComponent(videoUrl);
+    const parsed = new URL(decodedUrl);
+    if (!parsed.hostname.endsWith('googlevideo.com') && !parsed.hostname.endsWith('youtube.com')) {
+      return res.status(403).json({ error: 'Origen no permitido.' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'URL inválida.' });
+  }
+
+  log('INFO', 'VideoStream', `Streaming video to user: ${decodedUrl.substring(0, 70)}...`);
+
+  const safeTitle = (title || 'video').replace(/[^\w\s-]/g, '').trim();
+  const protocol = decodedUrl.startsWith('https') ? https : http;
+
+  const proxyReq = protocol.get(decodedUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'Referer': 'https://www.youtube.com/',
+      'Origin': 'https://www.youtube.com'
+    }
+  }, (ytRes) => {
+    res.setHeader('Content-Type', ytRes.headers['content-type'] || 'video/mp4');
+    if (ytRes.headers['content-length']) {
+      res.setHeader('Content-Length', ytRes.headers['content-length']);
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.mp4"`);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.status(ytRes.statusCode || 200);
+
+    ytRes.pipe(res);
+    ytRes.on('error', (err) => {
+      log('ERROR', 'VideoStream', `Stream error: ${err.message}`);
+      if (!res.headersSent) res.status(500).end();
+    });
+  });
+
+  proxyReq.on('error', (err) => {
+    log('ERROR', 'VideoStream', `Request error: ${err.message}`);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al conectar con el servidor de video.' });
+  });
+
+  req.on('close', () => proxyReq.destroy());
+});
+
+// ─── Audio CDN URL (for client-side ffmpeg.wasm conversion) ──────────────────
+app.get('/api/audio-url', downloadLimiter, (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'Falta el parámetro url.' });
+  if (!fs.existsSync(YTDLP_PATH)) return res.status(500).json({ error: 'El descargador no está listo.' });
+
+  log('INFO', 'AudioURL', `Getting audio stream URL for: ${url}`);
+
+  const args = getYtDlpArgs([
+    '-f', 'bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio',
+    '--get-url',
+    '--no-playlist',
+    url
+  ]);
+
+  execFile(YTDLP_PATH, args, { maxBuffer: 2 * 1024 * 1024 }, (error, stdout, stderr) => {
+    if (error && !stdout) {
+      log('ERROR', 'AudioURL', stderr || error.message);
+      return res.status(500).json({ error: parseYtDlpError(stderr || error.message) });
+    }
+
+    const audioUrl = stdout.trim().split('\n')[0];
+    if (!audioUrl) {
+      return res.status(500).json({ error: 'No se pudo obtener el enlace de audio.' });
+    }
+
+    res.json({ audioUrl });
+  });
+});
+
+// ─── Audio proxy (CORS bridge: browser → VPS → YouTube CDN) ──────────────────
+// Streams audio bytes transparently without saving to disk
+app.get('/api/proxy-audio', downloadLimiter, (req, res) => {
+  const { url: audioUrl, title } = req.query;
+  if (!audioUrl) return res.status(400).json({ error: 'Falta el parámetro url.' });
+
+  let decodedUrl;
+  try {
+    decodedUrl = decodeURIComponent(audioUrl);
+    // Basic URL safety check
+    const parsed = new URL(decodedUrl);
+    if (!parsed.hostname.endsWith('googlevideo.com') && !parsed.hostname.endsWith('youtube.com')) {
+      return res.status(403).json({ error: 'URL de origen no permitida.' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'URL inválida.' });
+  }
+
+  log('INFO', 'AudioProxy', `Proxying audio: ${decodedUrl.substring(0, 80)}...`);
+
+  const safeTitle = (title || 'audio').replace(/[^\w\s-]/g, '').trim();
+
+  // Set headers for streaming download
+  res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.webm"`);
+  res.setHeader('Content-Type', 'audio/webm');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store');
+
+  const protocol = decodedUrl.startsWith('https') ? https : http;
+
+  const proxyReq = protocol.get(decodedUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'Referer': 'https://www.youtube.com/',
+      'Origin': 'https://www.youtube.com'
+    }
+  }, (ytRes) => {
+    if (ytRes.headers['content-length']) {
+      res.setHeader('Content-Length', ytRes.headers['content-length']);
+    }
+    res.status(ytRes.statusCode || 200);
+    ytRes.pipe(res);
+    ytRes.on('error', (err) => {
+      log('ERROR', 'AudioProxy', `Stream error: ${err.message}`);
+      if (!res.headersSent) res.status(500).end();
+    });
+  });
+
+  proxyReq.on('error', (err) => {
+    log('ERROR', 'AudioProxy', `Request error: ${err.message}`);
+    if (!res.headersSent) res.status(500).json({ error: 'Error al obtener el audio de YouTube.' });
+  });
+
+  req.on('close', () => proxyReq.destroy());
+});
+
+// Trigger download
 app.post('/api/download', downloadLimiter, (req, res) => {
   const { url, format, quality, title, thumbnail } = req.body;
   if (!url || !format || !quality) {
     return res.status(400).json({ error: 'Parámetros url, format y quality son requeridos.' });
   }
 
-  // Check for duplicate active task
   const duplicateTask = Object.values(activeDownloads).find(task =>
     task.url === url && task.format === format && task.quality === quality &&
     ['queued', 'downloading', 'processing'].includes(task.status)
@@ -302,7 +557,6 @@ app.post('/api/download', downloadLimiter, (req, res) => {
     return res.json({ success: true, taskId: duplicateTask.id });
   }
 
-  // Check concurrent download limit
   const activeCount = Object.values(activeDownloads).filter(t =>
     ['downloading', 'processing'].includes(t.status)
   ).length;
@@ -346,13 +600,12 @@ app.get('/api/download/progress/:taskId', (req, res) => {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no' // Nginx: disable proxy buffering for SSE
+    'X-Accel-Buffering': 'no'
   });
 
   const client = { id: Date.now(), res };
   task.clients.push(client);
 
-  // Send immediate current state
   const data = JSON.stringify({
     id: task.id, title: task.title, thumbnail: task.thumbnail,
     status: task.status, progress: task.progress, speed: task.speed,
@@ -374,15 +627,16 @@ function runDownloadTask(taskId, url, format, quality) {
   task.status = 'downloading';
   broadcastProgress(task);
 
-  let args = [
+  let baseArgs = [
     '--newline',
-    '--js-runtimes', 'node',
     '--no-playlist',
+    '-N', '8',
+    '--limit-rate', '8M',
     '--progress-template', 'downloading:%(progress._percent_str)s:%(progress._speed_str)s:%(progress._eta_str)s'
   ];
 
   if (format === 'audio') {
-    args.push(
+    baseArgs.push(
       '-f', 'bestaudio/best',
       '-x',
       '--audio-format', 'mp3',
@@ -393,7 +647,7 @@ function runDownloadTask(taskId, url, format, quality) {
       url
     );
   } else {
-    args.push(
+    baseArgs.push(
       '-f', `bestvideo[height<=${quality}][ext=mp4][vcodec!=none]+bestaudio[ext=m4a]/bestvideo[height<=${quality}][vcodec!=none]+bestaudio/best[height<=${quality}][vcodec!=none]`,
       '--merge-output-format', 'mp4',
       '--ffmpeg-location', ffmpegPath,
@@ -402,9 +656,12 @@ function runDownloadTask(taskId, url, format, quality) {
     );
   }
 
+  const args = getYtDlpArgs(baseArgs);
+
   log('INFO', 'Download', `Task: ${taskId} started`);
 
   const child = spawn(YTDLP_PATH, args);
+  let accumulatedStderr = '';
 
   child.stdout.on('data', (buffer) => {
     const text = buffer.toString();
@@ -460,6 +717,7 @@ function runDownloadTask(taskId, url, format, quality) {
 
   child.stderr.on('data', (buffer) => {
     const errorText = buffer.toString().trim();
+    accumulatedStderr += errorText + '\n';
     if (errorText.toLowerCase().includes('error')) {
       log('WARN', 'Download', `StdErr: ${errorText.substring(0, 200)}`);
     }
@@ -468,14 +726,12 @@ function runDownloadTask(taskId, url, format, quality) {
   child.on('close', (code) => {
     log('INFO', 'Download', `Task: ${taskId} finished with exit code ${code}`);
 
-    // Cleanup intermediate split-stream files
     try {
       const allFiles = fs.readdirSync(DOWNLOADS_DIR);
       const intermediatePattern = /\.f\d+\.(m4a|mp4|webm|mkv)$/i;
       allFiles.forEach(file => {
         if (intermediatePattern.test(file)) {
           fs.unlinkSync(path.join(DOWNLOADS_DIR, file));
-          log('INFO', 'Cleanup', `Deleted intermediate: ${file}`);
         }
       });
     } catch (e) {
@@ -488,18 +744,15 @@ function runDownloadTask(taskId, url, format, quality) {
       task.speed = '--';
       task.eta = 'Completado';
 
-      // Clear wrong filenames
       if (task.filename) {
         const isTemp = /\.f\d+\.[a-zA-Z0-9]+$/.test(task.filename) ||
                        task.filename.endsWith('.part') || task.filename.endsWith('.temp');
         const isWrongExt = (format !== 'audio' && (task.filename.endsWith('.m4a') || task.filename.endsWith('.webm')));
         if (isTemp || isWrongExt) {
-          log('INFO', 'Download', `Cleared wrong filename: "${task.filename}"`);
           task.filename = '';
         }
       }
 
-      // Scan folder for matching file if filename couldn't be parsed
       if (!task.filename) {
         try {
           const files = fs.readdirSync(DOWNLOADS_DIR);
@@ -521,7 +774,6 @@ function runDownloadTask(taskId, url, format, quality) {
         }
       }
 
-      // Sanitize double dots in filename
       if (task.filename) {
         const cleanName = task.filename.replace(/\.{2,}/g, '.').replace(/\s+\./g, '.').trim();
         if (cleanName !== task.filename) {
@@ -530,7 +782,6 @@ function runDownloadTask(taskId, url, format, quality) {
           try {
             if (fs.existsSync(oldPath)) {
               fs.renameSync(oldPath, newPath);
-              log('INFO', 'Rename', `"${task.filename}" → "${cleanName}"`);
               task.filename = cleanName;
             }
           } catch (e) {
@@ -542,11 +793,10 @@ function runDownloadTask(taskId, url, format, quality) {
       broadcastProgress(task);
     } else {
       task.status = 'failed';
-      task.error = 'Ocurrió un error durante la descarga. Inténtalo de nuevo.';
+      task.error = parseYtDlpError(accumulatedStderr);
       broadcastProgress(task);
     }
 
-    // Close SSE clients after a delay
     setTimeout(() => {
       task.clients.forEach(c => { try { c.res.end(); } catch {} });
       task.clients = [];
@@ -555,8 +805,6 @@ function runDownloadTask(taskId, url, format, quality) {
 }
 
 // ─── Periodic cleanup ────────────────────────────────────────────────────────
-
-// Clean old tasks from memory every 10 minutes
 setInterval(() => {
   const cutoff = Date.now() - (TASK_CLEANUP_MIN * 60 * 1000);
   let cleaned = 0;
@@ -590,6 +838,7 @@ app.listen(PORT, () => {
   log('INFO', 'Server', `Platform: ${process.platform} | Binary: ${YTDLP_BINARY}`);
   log('INFO', 'Server', `Downloads: ${DOWNLOADS_DIR}`);
   log('INFO', 'Server', `FFmpeg: ${ffmpegPath}`);
+  log('INFO', 'Server', `Cookies File: ${fs.existsSync(COOKIES_PATH) ? 'PRESENTE (' + COOKIES_PATH + ')' : 'NO DETECTADO'}`);
   log('INFO', 'Server', `CORS origin: ${CORS_ORIGIN}`);
   log('INFO', 'Server', `Max concurrent: ${MAX_CONCURRENT} | File retention: ${FILE_RETENTION_MIN}min`);
   log('INFO', 'Server', '===============================================');

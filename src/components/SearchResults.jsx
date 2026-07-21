@@ -1,13 +1,15 @@
 import React from 'react';
 import { Play } from 'lucide-react';
 import { formatDuration } from '../utils.js';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function SearchResults({ results, onSelectVideo }) {
+  const { t } = useLanguage();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <h3 style={{ fontSize: '1.2rem', fontWeight: '700', borderLeft: '3px solid var(--color-secondary)', paddingLeft: '0.65rem' }}>
-        Resultados de Búsqueda
+        {t('results.title')}
       </h3>
 
       <div className="results-grid">
@@ -41,7 +43,7 @@ export default function SearchResults({ results, onSelectVideo }) {
               onClick={() => onSelectVideo(video.url)}
             >
               <Play size={14} style={{ color: 'var(--color-secondary)' }} />
-              Configurar Descarga
+              {t('results.selectBtn')}
             </button>
           </div>
         ))}

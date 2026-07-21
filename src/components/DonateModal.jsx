@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { X, Heart, QrCode, ExternalLink, Check, Copy } from 'lucide-react';
 import qrImage from '../assets/qr_yape_plin.png';
 import qrPaypalImage from '../assets/qr_paypal.png';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DonateModal({ isOpen, onClose }) {
+  const { t } = useLanguage();
   const [showQr, setShowQr] = useState(false);
   const [showPaypalQr, setShowPaypalQr] = useState(false);
   const [copiedPaypal, setCopiedPaypal] = useState(false);
@@ -24,7 +26,7 @@ export default function DonateModal({ isOpen, onClose }) {
         <div className="donate-modal-header">
           <div className="donate-title-badge">
             <Heart size={18} className="heart-icon-pulse" />
-            <span>Apoyar proyecto</span>
+            <span>{t('header.support')}</span>
           </div>
           <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar modal">
             <X size={20} />
@@ -33,11 +35,8 @@ export default function DonateModal({ isOpen, onClose }) {
 
         {/* Modal Intro */}
         <div className="donate-intro">
-          <h2>¡Gracias por tu apoyo!</h2>
-          <p>
-            Gracias por apoyar y mantener este programa libre de anuncios y suscripciones. 
-            Toda contribución nos ayuda a cubrir los costos del servidor.
-          </p>
+          <h2>{t('donate.title')}</h2>
+          <p>{t('donate.desc')}</p>
         </div>
 
         {/* Donation Options Container */}
@@ -73,7 +72,7 @@ export default function DonateModal({ isOpen, onClose }) {
               {showQr && (
                 <div className="qr-container">
                   <img src={qrImage} alt="Código QR Yape Plin 983126035" className="qr-image" />
-                  <p className="qr-caption">Escanea desde tu app de Yape o Plin</p>
+                  <p className="qr-caption">{t('donate.scanYape')}</p>
                 </div>
               )}
             </div>
@@ -83,12 +82,12 @@ export default function DonateModal({ isOpen, onClose }) {
           <div className="donate-card paypal-card">
             <div className="donate-card-header">
               <span className="badge-paypal">PayPal</span>
-              <span className="country-tag">Internacional</span>
+              <span className="country-tag">International</span>
             </div>
 
             <div className="donate-card-body">
               <div className="paypal-info-display">
-                <span className="phone-label">Correo electrónico PayPal</span>
+                <span className="phone-label">{t('donate.paypalTitle')}</span>
                 <div className="paypal-email-box">
                   <span className="email-val">rogeeromontufar@gmail.com</span>
                   <button 
@@ -109,7 +108,7 @@ export default function DonateModal({ isOpen, onClose }) {
                 className="btn-paypal-link"
               >
                 <ExternalLink size={16} />
-                <span>Donar vía PayPal.me</span>
+                <span>{t('donate.paypalBtn')}</span>
               </a>
 
               <button 
@@ -136,7 +135,7 @@ export default function DonateModal({ isOpen, onClose }) {
 
         {/* Modal Footer */}
         <div className="donate-modal-footer">
-          <span>MoonDownloader es un proyecto independiente y de código abierto</span>
+          <span>{t('seo.footerRights')}</span>
         </div>
 
       </div>
