@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header.jsx';
 import SearchBox from './components/SearchBox.jsx';
 import SearchResults from './components/SearchResults.jsx';
@@ -29,6 +29,28 @@ export default function App() {
   // Feedback states
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
+
+  // Refs for smooth scrolling
+  const progressRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Smooth scroll to progress area when a new download starts
+  useEffect(() => {
+    if (activeTaskIds.length > 0 && progressRef.current) {
+      setTimeout(() => {
+        progressRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+  }, [activeTaskIds.length]);
+
+  // Smooth scroll to video config panel when video info loads
+  useEffect(() => {
+    if (videoInfo && panelRef.current) {
+      setTimeout(() => {
+        panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+  }, [videoInfo]);
 
   // Fetch status of backend bin files on mount
   useEffect(() => {
@@ -282,18 +304,22 @@ export default function App() {
 
         {/* Selected Video Config Panel */}
         {videoInfo && (
-          <DownloadPanel 
-            videoInfo={videoInfo} 
-            onDownload={handleDownload} 
-            activeConfigs={downloadingConfigs} 
-          />
+          <div ref={panelRef}>
+            <DownloadPanel 
+              videoInfo={videoInfo} 
+              onDownload={handleDownload} 
+              activeConfigs={downloadingConfigs} 
+            />
+          </div>
         )}
 
-        {/* Active Downloads List */}
-        <DownloadProgress 
-          taskIds={activeTaskIds} 
-          onTaskUpdate={handleTaskUpdate} 
-        />
+        {/* Active Downloads List & Focus Area */}
+        <div ref={progressRef}>
+          <DownloadProgress 
+            taskIds={activeTaskIds} 
+            onTaskUpdate={handleTaskUpdate} 
+          />
+        </div>
 
       </main>
 
