@@ -6,7 +6,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 export default function DonateModal({ isOpen, onClose }) {
   const { t } = useLanguage();
-  const [showQr, setShowQr] = useState(false);
+  const [showQr, setShowQr] = useState(true);
   const [showPaypalQr, setShowPaypalQr] = useState(false);
   const [copiedPaypal, setCopiedPaypal] = useState(false);
 
@@ -53,12 +53,6 @@ export default function DonateModal({ isOpen, onClose }) {
             </div>
 
             <div className="donate-card-body">
-              <div className="phone-number-display">
-                <span className="phone-label">Número Yape / Plin</span>
-                <span className="phone-val">983 126 035</span>
-                <span className="phone-holder">Titular: Roger R. Montufar</span>
-              </div>
-
               <button 
                 type="button" 
                 className={`btn-show-qr ${showQr ? 'active' : ''}`}
@@ -70,8 +64,8 @@ export default function DonateModal({ isOpen, onClose }) {
 
               {/* Collapsible QR Code Box */}
               {showQr && (
-                <div className="qr-container">
-                  <img src={qrImage} alt="Código QR Yape Plin 983126035" className="qr-image" />
+                <div className="qr-container" style={{ marginTop: '0.75rem' }}>
+                  <img src={qrImage} alt="Código QR Yape Plin" className="qr-image" />
                   <p className="qr-caption">{t('donate.scanYape')}</p>
                 </div>
               )}
