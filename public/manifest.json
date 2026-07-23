@@ -1,0 +1,19 @@
+{
+  "short_name": "MoonDownloader",
+  "name": "MoonDownloader - Descargador de YouTube Gratis 4K & MP3",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#050508",
+  "theme_color": "#050508",
+  "display": "standalone",
+  "orientation": "portrait",
+  "description": "Descarga vídeos de YouTube en MP4 1080p, 4K y convierte a MP3 320kbps rápido y gratis.",
+  "categories": ["utilities", "multimedia"]
+}

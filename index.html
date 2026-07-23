@@ -19,6 +19,7 @@
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/logo.png" />
+    <link rel="manifest" href="/manifest.json" />
 
     <!-- Canonical & Hreflang for ES/EN SEO -->
     <link rel="canonical" href="https://mdownload.moondev.online/" />
@@ -59,6 +60,70 @@
         "priceCurrency": "USD"
       },
       "inLanguage": ["es", "en"]
+    }
+    </script>
+
+    <!-- HowTo Schema for Google Rich Snippets -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      "name": "Cómo descargar vídeos de YouTube en MP4 o MP3 gratis",
+      "description": "Guía paso a paso para descargar vídeos y música de YouTube gratis en alta calidad 1080p, 4K y MP3 320kbps con MoonDownloader.",
+      "step": [
+        {
+          "@type": "HowToStep",
+          "name": "Paso 1: Copiar el enlace de YouTube",
+          "text": "Abre YouTube, busca el vídeo que deseas descargar y copia su enlace o URL de la barra de direcciones.",
+          "position": 1
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Paso 2: Pegar la URL en MoonDownloader",
+          "text": "Pega la URL en el buscador principal de MoonDownloader o escribe directamente el nombre de la canción/vídeo.",
+          "position": 2
+        },
+        {
+          "@type": "HowToStep",
+          "name": "Paso 3: Seleccionar formato y descargar",
+          "text": "Selecciona entre calidad de Vídeo MP4 (720p, 1080p, 4K) o Audio MP3 (320kbps) y haz clic en Descargar.",
+          "position": 3
+        }
+      ]
+    }
+    </script>
+
+    <!-- FAQPage Schema for Google Rich Cards -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "¿Cómo descargar vídeos de YouTube gratis en MP4 1080p o 4K?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Copia la URL del vídeo de YouTube, pégala en MoonDownloader, selecciona la resolución deseada (1080p, 4K) y haz clic en el botón de Descargar."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Cómo convertir canciones de YouTube a MP3 320kbps?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Pega el enlace en MoonDownloader, cambia a la pestaña Audio MP3, elige la calidad de 320kbps y presiona Descargar MP3."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "¿Funciona en teléfonos Android, iPhone y PC?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sí. MoonDownloader es 100% responsive y funciona directamente desde el navegador en cualquier smartphone, tablet o computadora sin instalar programas."
+          }
+        }
+      ]
     }
     </script>
 
