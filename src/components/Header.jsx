@@ -33,21 +33,6 @@ export default function Header({ status, onSetup, isWorking, onOpenDonate, onOpe
           <span>{lang.toUpperCase()}</span>
         </button>
 
-        {/* Cookies / Anti-bot Badge */}
-        <button
-          onClick={onOpenCookies}
-          className="cookies-badge-btn"
-          title={status.hasCookies ? 'Cookies.txt activo' : 'Configurar cookies para evitar bloqueos de YouTube'}
-          style={{
-            background: status.hasCookies ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 171, 0, 0.12)',
-            borderColor: status.hasCookies ? 'var(--color-success)' : 'var(--color-warning)',
-            color: status.hasCookies ? 'var(--color-success)' : 'var(--color-warning)'
-          }}
-        >
-          {status.hasCookies ? <CheckCircle size={14} /> : <ShieldAlert size={14} />}
-          <span>Cookies</span>
-        </button>
-
         {/* Binary Status Badges */}
         <div className="header-badges-group">
           <div className={`status-badge ${status.ytDlpReady ? 'ready' : 'missing'}`}>
