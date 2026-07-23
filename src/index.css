@@ -1299,3 +1299,186 @@ h1, h2, h3, h4, h5, h6 {
   animation: spin 1s linear infinite;
   display: inline-block;
 }
+
+/* ─── Header UI Elements & Responsive Layouts ────────────────────────────── */
+.header-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 50%;
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.header-badges-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cookies-badge-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.lang-switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--color-foreground);
+  padding: 0.4rem 0.75rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+/* Tablet & Mobile Media Queries (< 768px) */
+@media (max-width: 768px) {
+  .header {
+    padding: 1rem 1.25rem;
+  }
+  
+  .container {
+    padding: 1.25rem 1rem;
+  }
+
+  .header-actions {
+    gap: 0.5rem;
+  }
+
+  .header-donate-badges {
+    display: none;
+  }
+
+  .download-panel-layout {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .selected-video-title {
+    font-size: 1.1rem;
+  }
+
+  .results-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+}
+
+/* Smartphone Media Queries (< 640px) */
+@media (max-width: 640px) {
+  .header {
+    padding: 0.85rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .logo-text {
+    font-size: 1.25rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .header-badges-group {
+    display: none; /* Hide yt-dlp/ffmpeg status badges on small mobile screens to keep header clean */
+  }
+
+  .search-box-wrapper {
+    padding: 0.35rem 0.4rem;
+  }
+
+  .search-input {
+    font-size: 0.9rem;
+    padding-left: 2.2rem;
+  }
+
+  .search-btn {
+    padding: 0.6rem 0.9rem;
+    font-size: 0.82rem;
+  }
+
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .option-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .option-row .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .queue-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+    padding: 1rem;
+  }
+
+  .queue-card-thumb {
+    width: 100%;
+    height: auto;
+    max-height: 160px;
+  }
+
+  .queue-card .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .donate-modal {
+    padding: 1rem;
+    width: 95%;
+  }
+
+  .donate-methods-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Extra Small Mobile Screens (< 420px) */
+@media (max-width: 420px) {
+  .container {
+    padding: 0.85rem 0.6rem;
+  }
+
+  .btn-donate-header span {
+    font-size: 0.78rem;
+  }
+
+  .cookies-badge-btn span, .lang-switcher-btn span {
+    font-size: 0.78rem;
+  }
+
+  .format-tab-btn {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.88rem;
+  }
+}
