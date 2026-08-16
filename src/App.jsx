@@ -11,7 +11,7 @@ import SeoFooter from './components/SeoFooter.jsx';
 import { AlertCircle, Terminal, HelpCircle } from 'lucide-react';
 
 export default function App() {
-  const [status, setStatus] = useState({ ytDlpReady: false, ffmpegReady: false, hasCookies: false });
+  const [status, setStatus] = useState({ ytDlpReady: true, ffmpegReady: true, hasCookies: true, isLoaded: false });
   const [searchResults, setSearchResults] = useState(null);
   const [videoInfo, setVideoInfo] = useState(null);
   const [activeTaskIds, setActiveTaskIds] = useState([]);
@@ -57,17 +57,22 @@ export default function App() {
     fetchStatus();
   }, []);
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (retryCount = 0) => {
     try {
       const res = await fetch('/api/status');
       if (!res.ok) throw new Error('No se pudo verificar el estado del servidor.');
       const data = await res.json();
-      setStatus(data);
+      setStatus({ ...data, isLoaded: true });
+      setError(null);
     } catch (e) {
-      console.error(e);
-      setError('El servidor backend local no responde. Asegúrate de iniciar la aplicación con "npm run dev".');
+      console.warn('Backend status check:', e.message);
+      if (retryCount < 3) {
+        setTimeout(() => fetchStatus(retryCount + 1), 2000);
+      }
     }
   };
+
+  const allReady = status.ytDlpReady && status.ffmpegReady;
 
   const handleSearch = async (query, isUrl) => {
     setError(null);
@@ -205,8 +210,6 @@ export default function App() {
       setIsWorking(false);
     }
   };
-
-  const allReady = status.ytDlpReady && status.ffmpegReady;
 
   return (
     <div>
