@@ -1,16 +1,25 @@
 import React, { useState } from 'react';
-import { HelpCircle, ChevronDown, ShieldCheck, Zap, Infinity as InfinityIcon } from 'lucide-react';
+import { HelpCircle, ChevronDown, ShieldCheck, Zap, Infinity as InfinityIcon, Scale } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import LegalModal from './LegalModal.jsx';
 
 export default function SeoFooter() {
   const { t, lang } = useLanguage();
   const [openFaq, setOpenFaq] = useState(null);
+  const [legalModalOpen, setLegalModalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState('terms');
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
   };
 
+  const openLegal = (tab) => {
+    setLegalTab(tab);
+    setLegalModalOpen(true);
+  };
+
   const questions = translationsList(lang);
+  const isEn = lang === 'en';
 
   return (
     <footer style={{ marginTop: '4rem', borderTop: '1px solid var(--border-light)', paddingTop: '3rem', paddingBottom: '3rem' }}>
@@ -101,12 +110,49 @@ export default function SeoFooter() {
           </div>
         </section>
 
+        {/* Legal & Trust Navigation Links */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+          <button
+            onClick={() => openLegal('terms')}
+            style={{ background: 'none', border: 'none', color: 'var(--color-foreground-muted)', cursor: 'pointer', textDecoration: 'underline', transition: 'color 0.2s' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-foreground-muted)'}
+          >
+            {isEn ? 'Terms of Service' : 'Términos de Servicio'}
+          </button>
+
+          <button
+            onClick={() => openLegal('privacy')}
+            style={{ background: 'none', border: 'none', color: 'var(--color-foreground-muted)', cursor: 'pointer', textDecoration: 'underline', transition: 'color 0.2s' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-foreground-muted)'}
+          >
+            {isEn ? 'Privacy Policy' : 'Política de Privacidad'}
+          </button>
+
+          <button
+            onClick={() => openLegal('dmca')}
+            style={{ background: 'none', border: 'none', color: 'var(--color-foreground-muted)', cursor: 'pointer', textDecoration: 'underline', transition: 'color 0.2s' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-foreground-muted)'}
+          >
+            {isEn ? 'DMCA & Copyright' : 'Aviso Legal DMCA'}
+          </button>
+        </div>
+
         {/* Footer Rights */}
         <div style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--color-foreground-muted)' }}>
           <p>© {new Date().getFullYear()} {t('seo.footerRights')}</p>
         </div>
 
       </div>
+
+      {/* Legal Modal */}
+      <LegalModal
+        isOpen={legalModalOpen}
+        onClose={() => setLegalModalOpen(false)}
+        initialTab={legalTab}
+      />
     </footer>
   );
 }
