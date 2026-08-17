@@ -627,11 +627,15 @@ function runDownloadTask(taskId, url, format, quality) {
   task.status = 'downloading';
   broadcastProgress(task);
 
+  const taskOutFile = path.join(DOWNLOADS_DIR, `.${taskId}_dest.txt`);
+
   let baseArgs = [
     '--newline',
     '--no-playlist',
     '-N', '8',
     '--limit-rate', '8M',
+    '--print-to-file', 'after_move:%(filepath)s', taskOutFile,
+    '--print', 'after_move:FINAL_OUTPUT_FILE:%(filepath)s',
     '--progress-template', 'downloading:%(progress._percent_str)s:%(progress._speed_str)s:%(progress._eta_str)s'
   ];
 
@@ -669,7 +673,13 @@ function runDownloadTask(taskId, url, format, quality) {
       line = line.trim();
       if (!line) continue;
 
-      if (line.startsWith('downloading:')) {
+      if (line.startsWith('FINAL_OUTPUT_FILE:')) {
+        const resolvedPath = line.replace('FINAL_OUTPUT_FILE:', '').trim();
+        if (resolvedPath && fs.existsSync(resolvedPath)) {
+          task.filename = path.basename(resolvedPath);
+        }
+      }
+      else if (line.startsWith('downloading:')) {
         const parts = line.split(':');
         if (parts.length >= 4) {
           task.progress = parseFloat(parts[1].replace('%', '').trim()) || 0;
@@ -744,6 +754,23 @@ function runDownloadTask(taskId, url, format, quality) {
       task.speed = '--';
       task.eta = 'Completado';
 
+      // 1. Read exact file recorded by --print-to-file
+      if (fs.existsSync(taskOutFile)) {
+        try {
+          const content = fs.readFileSync(taskOutFile, 'utf8').trim();
+          const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+          if (lines.length > 0) {
+            const lastPath = lines[lines.length - 1];
+            if (fs.existsSync(lastPath)) {
+              task.filename = path.basename(lastPath);
+            }
+          }
+          fs.unlinkSync(taskOutFile);
+        } catch (e) {
+          log('WARN', 'TaskOut', `Could not read ${taskOutFile}: ${e.message}`);
+        }
+      }
+
       if (task.filename) {
         const isTemp = /\.f\d+\.[a-zA-Z0-9]+$/.test(task.filename) ||
                        task.filename.endsWith('.part') || task.filename.endsWith('.temp');
@@ -753,24 +780,25 @@ function runDownloadTask(taskId, url, format, quality) {
         }
       }
 
+      // 2. Fallback strictly by newest file created after task start
       if (!task.filename) {
         try {
-          const files = fs.readdirSync(DOWNLOADS_DIR);
           const extension = format === 'audio' ? '.mp3' : '.mp4';
-          const strip = (name) => name.replace(/\.[a-zA-Z0-9]+$/, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-          const target = strip(task.title);
-          const qualityStr = format === 'audio' ? quality : `${quality}p`;
+          const files = fs.readdirSync(DOWNLOADS_DIR)
+            .filter(f => f.endsWith(extension) && !f.startsWith('.'))
+            .map(f => {
+              const full = path.join(DOWNLOADS_DIR, f);
+              const stat = fs.statSync(full);
+              return { name: f, mtime: stat.mtimeMs };
+            })
+            .sort((a, b) => b.mtime - a.mtime); // Newest first
 
-          const matchedFile = files.find(file => {
-            if (!file.endsWith(extension)) return false;
-            if (!file.toLowerCase().includes(qualityStr.toLowerCase())) return false;
-            const fileStripped = strip(file);
-            return fileStripped.includes(target) || target.includes(fileStripped);
-          });
-
-          task.filename = matchedFile || `${task.title.replace(/[\\/:*?"<>|]/g, '')} [${qualityStr}]${extension}`;
-        } catch {
-          task.filename = 'descarga_finalizada' + (format === 'audio' ? '.mp3' : '.mp4');
+          const recentFile = files.find(f => f.mtime >= task.createdAt - 5000);
+          if (recentFile) {
+            task.filename = recentFile.name;
+          }
+        } catch (e) {
+          log('WARN', 'Fallback', `Error resolving file: ${e.message}`);
         }
       }
 
@@ -790,8 +818,10 @@ function runDownloadTask(taskId, url, format, quality) {
         }
       }
 
+      log('INFO', 'Download', `Task: ${taskId} successfully resolved filename: ${task.filename}`);
       broadcastProgress(task);
     } else {
+      try { if (fs.existsSync(taskOutFile)) fs.unlinkSync(taskOutFile); } catch {}
       task.status = 'failed';
       task.error = parseYtDlpError(accumulatedStderr);
       broadcastProgress(task);
@@ -804,7 +834,7 @@ function runDownloadTask(taskId, url, format, quality) {
   });
 }
 
-// ─── Periodic cleanup ────────────────────────────────────────────────────────
+// ─── Periodic cleanup (Memory & Disk) ────────────────────────────────────────
 setInterval(() => {
   const cutoff = Date.now() - (TASK_CLEANUP_MIN * 60 * 1000);
   let cleaned = 0;
@@ -816,7 +846,28 @@ setInterval(() => {
     }
   }
   if (cleaned > 0) log('INFO', 'Cleanup', `Removed ${cleaned} old task(s) from memory`);
-}, 10 * 60 * 1000);
+
+  // Clean old files from disk (retention limit)
+  try {
+    const fileCutoff = Date.now() - (FILE_RETENTION_MIN * 60 * 1000);
+    const files = fs.readdirSync(DOWNLOADS_DIR);
+    let filesDeleted = 0;
+    files.forEach(file => {
+      if (file === '.gitkeep' || file.startsWith('.')) return;
+      const filePath = path.join(DOWNLOADS_DIR, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.isFile() && stat.mtimeMs < fileCutoff) {
+          fs.unlinkSync(filePath);
+          filesDeleted++;
+        }
+      } catch {}
+    });
+    if (filesDeleted > 0) log('INFO', 'Cleanup', `Deleted ${filesDeleted} expired file(s) from disk`);
+  } catch (e) {
+    log('WARN', 'Cleanup', `Disk cleanup error: ${e.message}`);
+  }
+}, 3 * 60 * 1000);
 
 // ─── Static files & SPA fallback ─────────────────────────────────────────────
 const DIST_DIR = path.join(__dirname, 'dist');
