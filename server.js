@@ -42,6 +42,23 @@ function log(level, tag, message) {
   console.log(`[${timestamp}] [${level}] [${tag}] ${message}`);
 }
 
+// Auto-update yt-dlp binary to keep up with YouTube player changes
+function autoUpdateYtDlp() {
+  if (fs.existsSync(YTDLP_PATH)) {
+    execFile(YTDLP_PATH, ['-U'], (err, stdout, stderr) => {
+      if (err) {
+        log('WARN', 'Update', `yt-dlp auto-update check: ${stderr || err.message}`);
+      } else {
+        log('INFO', 'Update', `yt-dlp auto-update: ${stdout.trim()}`);
+      }
+    });
+  }
+}
+
+// Run update on startup and every 12 hours
+setTimeout(autoUpdateYtDlp, 5000);
+setInterval(autoUpdateYtDlp, 12 * 60 * 60 * 1000);
+
 // Helper to construct yt-dlp arguments with JS runtime & Cookies support
 function getYtDlpArgs(extraArgs = []) {
   const args = [
